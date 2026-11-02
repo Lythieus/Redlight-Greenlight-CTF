@@ -5,5 +5,4 @@ Deploy on Linux VM.
 
 Read the code to work out what it does. It is a CTF after all :)
 
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Lythieus/Redlight-Greenlight-CTF
-/main/deploy_redlight.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Lythieus/Redlight-Greenlight-CTF/main/deploy_redlight.sh)"
