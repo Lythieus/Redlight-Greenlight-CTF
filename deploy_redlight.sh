@@ -9,23 +9,30 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+export DEBIAN_FRONTEND=noninteractive
+
 echo "[+] Updating packages and installing prerequisites..."
 apt-get update -y
 apt-get install -y fail2ban iptables iptables-persistent
 
 echo "[+] Configuring iptables firewall rules..."
-# 1. Allow established and related connections (Prevents SSH drop)
-iptables -I INPUT 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# Reset INPUT so reruns don't stack duplicate rules.
+# Note: this briefly removes any existing INPUT rules, including SSH access.
+# Keep a second session open in case you need to recover.
+iptables -F INPUT
+
+# 1. Allow established and related connections
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 # 2. Allow local loopback traffic
-iptables -I INPUT 2 -i lo -j ACCEPT
+iptables -A INPUT -i lo -j ACCEPT
 
 # 3. Accept NEW connections to SSH (22) and Flag Port (8888)
-iptables -I INPUT 3 -p tcp --dport 22 -j ACCEPT
-iptables -I INPUT 4 -p tcp --dport 8888 -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8888 -j ACCEPT
 
 # 4. Log all other incoming SYN packets (The Portscan Trap)
-iptables -I INPUT 5 -p tcp --syn -j LOG --log-prefix "CTF_PORTSCAN: "
+iptables -A INPUT -p tcp --syn -j LOG --log-prefix "CTF_PORTSCAN: "
 
 # Save rules permanently
 netfilter-persistent save
@@ -40,13 +47,15 @@ EOF
 echo "[+] Writing Fail2Ban jail configuration..."
 cat << 'EOF' > /etc/fail2ban/jail.d/ctf-portscan.conf
 [ctf-portscan]
-enabled  = true
-filter   = ctf-portscan
-backend  = systemd
-maxretry = 10
-findtime = 5
-bantime  = 120
-action   = iptables-allports[name=portscan]
+enabled      = true
+filter       = ctf-portscan
+backend      = systemd
+journalmatch = _TRANSPORT=kernel
+maxretry     = 10
+findtime     = 5
+bantime      = 120
+ignoreip     = 127.0.0.1/8 ::1
+action       = iptables-allports[name=portscan]
 EOF
 
 echo "[+] Creating Python flag service script..."
